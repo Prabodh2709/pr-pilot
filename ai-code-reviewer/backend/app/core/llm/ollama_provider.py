@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 
 import httpx
 
 from app.config import settings
-from app.core.llm.base import LLMProvider, ReviewResult
+from app.core.llm.base import LLMProvider, ReviewResult, _parse_issues
+
+logger = logging.getLogger(__name__)
 
 _MODEL = "codellama"
 
@@ -24,15 +27,10 @@ class OllamaProvider(LLMProvider):
             resp.raise_for_status()
 
         raw = resp.json().get("response", "{}")
-        data = json.loads(raw)
-        issues = data.get("issues", [])
-        return [
-            ReviewResult(
-                category=i.get("category", "style"),
-                severity=i.get("severity", "info"),
-                line=int(i.get("line", 1)),
-                comment=i.get("comment", ""),
-                suggestion=i.get("suggestion"),
-            )
-            for i in issues
-        ]
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            logger.warning("Ollama returned non-JSON content; skipping hunk")
+            return []
+
+        return _parse_issues(data)

@@ -2,13 +2,9 @@ from __future__ import annotations
 
 import logging
 
-from groq import RateLimitError as GroqRateLimitError
-
 from app.core.diff_parser import DiffHunk, parse_diff
 from app.core.llm import get_llm_provider
 from app.core.llm.base import ReviewResult
-from app.core.llm.groq_provider import GroqProvider
-from app.core.llm.ollama_provider import OllamaProvider
 from app.github import client as gh
 
 logger = logging.getLogger(__name__)
@@ -63,8 +59,9 @@ async def run_review(
     hunks = parse_diff(unified_diff)
     all_results: list[ReviewResult] = []
 
-    primary = get_llm_provider()
-    fallback = OllamaProvider() if isinstance(primary, GroqProvider) else None
+    # Rate-limit fallback is handled transparently inside the provider returned
+    # by get_llm_provider(); review_engine does not need to know about it.
+    provider = get_llm_provider()
 
     for hunk in hunks:
         try:
@@ -75,13 +72,7 @@ async def run_review(
         prompt = _build_prompt(hunk, context_lines)
 
         try:
-            results = await primary.review(prompt)
-        except GroqRateLimitError:
-            logger.warning("Groq rate-limited; falling back to Ollama")
-            if fallback:
-                results = await fallback.review(prompt)
-            else:
-                results = []
+            results = await provider.review(prompt)
         except Exception as exc:
             logger.error("LLM review failed for hunk in %s: %s", hunk.file_path, exc)
             results = []

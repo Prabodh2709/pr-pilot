@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 
 from groq import AsyncGroq
+from groq import RateLimitError as GroqRateLimitError
 
 from app.config import settings
-from app.core.llm.base import LLMProvider, ReviewResult
+from app.core.llm.base import LLMProvider, ProviderRateLimitError, ReviewResult, _parse_issues
+
+logger = logging.getLogger(__name__)
 
 _MODEL = "llama-3.3-70b-versatile"
 
@@ -15,22 +19,21 @@ class GroqProvider(LLMProvider):
         self._client = AsyncGroq(api_key=settings.groq_api_key)
 
     async def review(self, prompt: str) -> list[ReviewResult]:
-        response = await self._client.chat.completions.create(
-            model=_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-            temperature=0.2,
-        )
-        raw = response.choices[0].message.content or "{}"
-        data = json.loads(raw)
-        issues = data.get("issues", [])
-        return [
-            ReviewResult(
-                category=i.get("category", "style"),
-                severity=i.get("severity", "info"),
-                line=int(i.get("line", 1)),
-                comment=i.get("comment", ""),
-                suggestion=i.get("suggestion"),
+        try:
+            response = await self._client.chat.completions.create(
+                model=_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                temperature=0.2,
             )
-            for i in issues
-        ]
+        except GroqRateLimitError as exc:
+            raise ProviderRateLimitError(str(exc)) from exc
+
+        raw = response.choices[0].message.content or "{}"
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            logger.warning("Groq returned non-JSON content; skipping hunk")
+            return []
+
+        return _parse_issues(data)
