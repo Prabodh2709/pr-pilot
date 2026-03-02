@@ -54,6 +54,9 @@ def parse_diff(unified_diff: str) -> list[DiffHunk]:
             new_line_num += 1
         elif raw_line.startswith("-"):
             current_hunk.lines.append(DiffLine(raw_line[1:], new_line_num, "removed"))
+        elif raw_line.startswith("\\"):
+            # "\ No newline at end of file" marker — not a content line
+            continue
         else:
             current_hunk.lines.append(DiffLine(raw_line[1:] if raw_line else "", new_line_num, "context"))
             new_line_num += 1

@@ -37,6 +37,8 @@ Return ONLY valid JSON. Example:
 def _build_prompt(hunk: DiffHunk, context_lines: list[str]) -> str:
     ctx_start = max(1, hunk.start_line - 20)
     ctx_end = hunk.start_line + len(hunk.lines) + 20
+    # Slice to ±20 lines around the hunk; ctx_start is 1-indexed.
+    window = context_lines[ctx_start - 1 : ctx_end]
     hunk_text = "\n".join(
         f"{'+ ' if l.kind == 'added' else '- ' if l.kind == 'removed' else '  '}{l.content}"
         for l in hunk.lines
@@ -45,7 +47,7 @@ def _build_prompt(hunk: DiffHunk, context_lines: list[str]) -> str:
         file_path=hunk.file_path,
         ctx_start=ctx_start,
         ctx_end=ctx_end,
-        context="\n".join(context_lines),
+        context="\n".join(window),
         diff_hunk=hunk_text,
     )
 
