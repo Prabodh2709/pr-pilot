@@ -50,6 +50,6 @@ class ReviewComment(Base):
     category: Mapped[str] = mapped_column(String(50), nullable=False)
     severity: Mapped[str] = mapped_column(String(50), nullable=False)
     comment: Mapped[str] = mapped_column(Text, nullable=False)
-    suggestion: Mapped[str] = mapped_column(Text, nullable=True)
+    suggestion: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     review: Mapped[PullRequestReview] = relationship(back_populates="comments")

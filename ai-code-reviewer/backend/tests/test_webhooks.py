@@ -294,7 +294,6 @@ async def test_github_webhook_dispatches_background_task_with_correct_args(
     assert kwargs["repo_full_name"] == _REPO_FULL_NAME
     assert kwargs["pr_number"] == 42
     assert kwargs["head_sha"] == "abc123"
-    assert kwargs["diff_url"] == _PR_PAYLOAD["pull_request"]["diff_url"]
 
 
 # ---------------------------------------------------------------------------
@@ -323,12 +322,11 @@ async def test_process_review_creates_comments_and_marks_completed():
     ):
         mock_settings.github_token = ""
         await _process_review(
-            review_id=10,
-            repo_full_name=_REPO_FULL_NAME,
-            pr_number=42,
-            head_sha="abc123",
-            diff_url="https://example.com/diff",
-        )
+                review_id=10,
+                repo_full_name=_REPO_FULL_NAME,
+                pr_number=42,
+                head_sha="abc123",
+            )
 
     mock_db.add_all.assert_called_once()
     (comments,) = mock_db.add_all.call_args.args
@@ -366,11 +364,11 @@ async def test_process_review_includes_github_token_in_auth_header():
             repo_full_name=_REPO_FULL_NAME,
             pr_number=42,
             head_sha="abc123",
-            diff_url="https://example.com/diff",
         )
 
-    assert len(captured_kwargs) == 1
-    assert captured_kwargs[0]["headers"].get("Authorization") == "token ghp_testtoken"
+    # Implementation makes two httpx calls: one to fetch PR JSON, one to fetch the diff.
+    assert len(captured_kwargs) == 2
+    assert all(k["headers"].get("Authorization") == "token ghp_testtoken" for k in captured_kwargs)
 
 
 @pytest.mark.asyncio
@@ -400,10 +398,11 @@ async def test_process_review_no_auth_header_when_token_empty():
             repo_full_name=_REPO_FULL_NAME,
             pr_number=42,
             head_sha="abc123",
-            diff_url="https://example.com/diff",
         )
 
-    assert "Authorization" not in captured_kwargs[0]["headers"]
+    # Implementation makes two httpx calls; neither should carry an auth header.
+    assert len(captured_kwargs) == 2
+    assert all("Authorization" not in k["headers"] for k in captured_kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -432,7 +431,6 @@ async def test_process_review_marks_failed_on_non_200_diff_response(caplog):
             repo_full_name=_REPO_FULL_NAME,
             pr_number=1,
             head_sha="sha",
-            diff_url="https://example.com/diff",
         )
 
     assert "5" in caplog.text
@@ -465,7 +463,6 @@ async def test_process_review_marks_failed_when_run_review_raises(caplog):
             repo_full_name=_REPO_FULL_NAME,
             pr_number=1,
             head_sha="sha",
-            diff_url="https://example.com/diff",
         )
 
     assert "7" in caplog.text
@@ -497,7 +494,6 @@ async def test_process_review_marks_failed_when_httpx_raises(caplog):
             repo_full_name=_REPO_FULL_NAME,
             pr_number=1,
             head_sha="sha",
-            diff_url="https://example.com/diff",
         )
 
     assert "9" in caplog.text
@@ -526,7 +522,6 @@ async def test_process_review_empty_diff_creates_no_comments():
             repo_full_name=_REPO_FULL_NAME,
             pr_number=1,
             head_sha="sha",
-            diff_url="https://example.com/diff",
         )
 
     mock_db.add_all.assert_called_once()

@@ -67,6 +67,7 @@ def test_post_review_comment_success():
         commit=mock_commit,
         path="src/main.py",
         line=10,
+        side="RIGHT",
     )
 
 

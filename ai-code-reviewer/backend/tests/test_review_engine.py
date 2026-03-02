@@ -211,7 +211,13 @@ async def test_run_review_passes_correct_args_to_post_comment():
         patch("app.core.review_engine.gh.get_file_content", return_value=[]),
         patch("app.core.review_engine.gh.post_review_comment") as mock_post,
     ):
-        mock_parse.return_value = [_make_hunk(file_path="foo.py")]
+        # Hunk includes line 2 as an added line so _clamp_to_hunk doesn't adjust it.
+        mock_parse.return_value = [
+            _make_hunk(
+                file_path="foo.py",
+                lines=[DiffLine(content="x = 1", line_number=_RESULT.line, kind="added")],
+            )
+        ]
         await run_review("owner/repo", 42, "sha999", "diff")
 
     call_kwargs = mock_post.call_args.kwargs
