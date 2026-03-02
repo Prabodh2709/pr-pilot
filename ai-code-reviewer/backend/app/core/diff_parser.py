@@ -74,6 +74,12 @@ def parse_diff(unified_diff: str) -> list[DiffHunk]:
             hunks.append(current_hunk)
             continue
 
+        # Diff file-boundary headers must end the current hunk, not be parsed as
+        # context lines that would inflate the line-number range.
+        if raw_line.startswith(("diff ", "index ", "--- ")):
+            current_hunk = None
+            continue
+
         if current_hunk is None:
             continue
 
