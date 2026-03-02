@@ -57,7 +57,6 @@ async def github_webhook(
         repo_full_name=repo_data["full_name"],
         pr_number=pr_data["number"],
         head_sha=pr_data["head"]["sha"],
-        diff_url=pr_data["diff_url"],
     )
 
     return {"status": "accepted", "review_id": review.id}
@@ -81,7 +80,6 @@ async def _process_review(
     repo_full_name: str,
     pr_number: int,
     head_sha: str,
-    diff_url: str,
 ) -> None:
     async with AsyncSessionLocal() as db:
         try:
@@ -89,18 +87,30 @@ async def _process_review(
             if settings.github_token:
                 auth_headers["Authorization"] = f"token {settings.github_token}"
 
+            pr_api_url = f"https://api.github.com/repos/{repo_full_name}/pulls/{pr_number}"
             async with httpx.AsyncClient(
-                headers=auth_headers, follow_redirects=True
+                headers={**auth_headers, "Accept": "application/vnd.github+json"},
+                follow_redirects=True,
             ) as client:
-                resp = await client.get(diff_url)
+                pr_json = (await client.get(pr_api_url)).json()
+
+            # Always use the current head SHA so diff lines and comment commit_id stay in sync.
+            # The webhook head_sha can lag behind if multiple commits arrive quickly.
+            current_head_sha = pr_json["head"]["sha"]
+
+            async with httpx.AsyncClient(
+                headers={**auth_headers, "Accept": "application/vnd.github.v3.diff"},
+                follow_redirects=True,
+            ) as client:
+                resp = await client.get(pr_api_url)
 
             if resp.status_code != 200:
                 raise RuntimeError(
-                    f"Failed to fetch diff (HTTP {resp.status_code}): {diff_url}"
+                    f"Failed to fetch diff (HTTP {resp.status_code}): {pr_api_url}"
                 )
 
             unified_diff = resp.text
-            results = await run_review(repo_full_name, pr_number, head_sha, unified_diff)
+            results = await run_review(repo_full_name, pr_number, current_head_sha, unified_diff)
 
             comments = [
                 ReviewComment(
