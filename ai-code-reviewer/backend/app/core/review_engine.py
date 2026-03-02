@@ -89,15 +89,26 @@ async def run_review(
                     pr_number=pr_number,
                     commit_id=head_sha,
                     path=hunk.file_path,
-                    line=result.line,
+                    line=_clamp_to_hunk(result.line, hunk),
                     body=_format_comment(result),
                 )
+                logger.info("Posted comment on %s line %s", hunk.file_path, result.line)
             except Exception as exc:
-                logger.error("Failed to post comment: %s", exc)
+                logger.error("Failed to post comment on %s: %s", hunk.file_path, exc)
 
         all_results.extend(results)
 
     return all_results
+
+
+def _clamp_to_hunk(line: int, hunk: DiffHunk) -> int:
+    """Clamp an LLM-returned line number to the nearest line actually in the diff."""
+    valid = [l.line_number for l in hunk.lines if l.kind in ("added", "context") and l.line_number > 0]
+    if not valid:
+        return hunk.start_line
+    if line in valid:
+        return line
+    return min(valid, key=lambda x: abs(x - line))
 
 
 def _format_comment(result: ReviewResult) -> str:
