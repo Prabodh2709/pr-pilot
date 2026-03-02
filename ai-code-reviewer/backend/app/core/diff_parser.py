@@ -94,3 +94,4 @@ def parse_diff(unified_diff: str) -> list[DiffHunk]:
 
 def filter_hunks_by_severity_threshold(hunks: list[DiffHunk], min_additions: int = 1) -> list[DiffHunk]:
     return [h for h in hunks if len(h.added_lines) >= min_additions]
+
