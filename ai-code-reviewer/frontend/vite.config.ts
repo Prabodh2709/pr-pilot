@@ -10,4 +10,9 @@ export default defineConfig({
       "/webhook": "http://localhost:8000",
     },
   },
+  test: {
+    environment: "happy-dom",
+    globals: true,
+    setupFiles: "./src/test/setup.ts",
+  },
 });

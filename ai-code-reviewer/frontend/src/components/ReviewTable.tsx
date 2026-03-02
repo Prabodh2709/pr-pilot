@@ -1,12 +1,6 @@
 import { Link } from "react-router-dom";
 import type { ReviewSummary } from "../api/client";
 
-const SEVERITY_COLORS: Record<string, string> = {
-  critical: "bg-red-100 text-red-700",
-  warning: "bg-yellow-100 text-yellow-700",
-  info: "bg-blue-100 text-blue-700",
-};
-
 const STATUS_COLORS: Record<string, string> = {
   completed: "bg-green-100 text-green-700",
   pending: "bg-gray-100 text-gray-600",

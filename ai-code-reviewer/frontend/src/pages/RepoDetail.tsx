@@ -6,9 +6,11 @@ import {
   type Metrics,
   type PaginatedReviews,
 } from "../api/client";
+import DonutChart from "../components/DonutChart";
 import IssueChart from "../components/IssueChart";
 import MetricCard from "../components/MetricCard";
 import ReviewTable from "../components/ReviewTable";
+import SeverityTrendChart from "../components/SeverityTrendChart";
 
 export default function RepoDetail() {
   const { repoName } = useParams<{ repoName: string }>();
@@ -54,14 +56,15 @@ export default function RepoDetail() {
                   value={reviews?.total ?? 0}
                 />
               </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <IssueChart data={metrics.by_category} title="Issues by Category" />
+              <div className="grid gap-4 md:grid-cols-2 mb-4">
+                <DonutChart data={metrics.by_category} title="Issues by Category" />
                 <IssueChart
                   data={metrics.by_severity}
                   title="Issues by Severity"
                   colors={["#ef4444", "#f59e0b", "#3b82f6"]}
                 />
               </div>
+              <SeverityTrendChart trend={metrics.trend} />
             </div>
           )}
 

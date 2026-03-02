@@ -40,10 +40,18 @@ export interface ReviewDetail {
   comments: ReviewComment[];
 }
 
+export interface TrendPoint {
+  review_id: number;
+  pr_number: number;
+  created_at: string;
+  by_severity: Record<string, number>;
+}
+
 export interface Metrics {
   by_category: Record<string, number>;
   by_severity: Record<string, number>;
   total: number;
+  trend: TrendPoint[];
 }
 
 export interface PaginatedReviews {
