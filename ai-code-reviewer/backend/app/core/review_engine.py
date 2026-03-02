@@ -92,8 +92,9 @@ async def run_review(
                     line=_clamp_to_hunk(result.line, hunk),
                     body=_format_comment(result),
                 )
+                logger.info("Posted comment on %s line %s", hunk.file_path, result.line)
             except Exception as exc:
-                logger.error("Failed to post comment: %s", exc)
+                logger.error("Failed to post comment on %s: %s", hunk.file_path, exc)
 
         all_results.extend(results)
 
