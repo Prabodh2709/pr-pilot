@@ -83,13 +83,17 @@ async def run_review(
             result.file_path = hunk.file_path
 
         for result in results:
+            clamped = _clamp_to_hunk(result.line, hunk)
+            valid = sorted({l.line_number for l in hunk.lines if l.kind in ("added", "context") and l.line_number > 0})
+            logger.error("COMMENT path=%s llm_line=%s clamped=%s valid_range=%s-%s",
+                         hunk.file_path, result.line, clamped, valid[0] if valid else "?", valid[-1] if valid else "?")
             try:
                 gh.post_review_comment(
                     repo_full_name=repo_full_name,
                     pr_number=pr_number,
                     commit_id=head_sha,
                     path=hunk.file_path,
-                    line=_clamp_to_hunk(result.line, hunk),
+                    line=clamped,
                     body=_format_comment(result),
                 )
             except Exception as exc:
