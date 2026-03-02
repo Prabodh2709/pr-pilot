@@ -3,13 +3,16 @@ from __future__ import annotations
 import json
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Request
+import httpx
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import PullRequestReview, Repository, ReviewComment
-from app.db.session import get_db
-from app.github.webhook_validator import verify_github_signature
+from app.config import settings
 from app.core.review_engine import run_review
+from app.db.models import PullRequestReview, Repository, ReviewComment
+from app.db.session import AsyncSessionLocal, get_db
+from app.github.webhook_validator import verify_github_signature
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -61,8 +64,6 @@ async def github_webhook(
 
 
 async def _get_or_create_repo(db: AsyncSession, full_name: str) -> Repository:
-    from sqlalchemy import select
-
     result = await db.execute(
         select(Repository).where(Repository.github_repo_full_name == full_name)
     )
@@ -82,21 +83,29 @@ async def _process_review(
     head_sha: str,
     diff_url: str,
 ) -> None:
-    import httpx
-    from app.db.session import AsyncSessionLocal
-
     async with AsyncSessionLocal() as db:
         try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(diff_url)
-                unified_diff = resp.text
+            auth_headers = {}
+            if settings.github_token:
+                auth_headers["Authorization"] = f"token {settings.github_token}"
 
+            async with httpx.AsyncClient(
+                headers=auth_headers, follow_redirects=True
+            ) as client:
+                resp = await client.get(diff_url)
+
+            if resp.status_code != 200:
+                raise RuntimeError(
+                    f"Failed to fetch diff (HTTP {resp.status_code}): {diff_url}"
+                )
+
+            unified_diff = resp.text
             results = await run_review(repo_full_name, pr_number, head_sha, unified_diff)
 
             comments = [
                 ReviewComment(
                     review_id=review_id,
-                    file_path=r.file_path if hasattr(r, "file_path") else "",
+                    file_path=r.file_path,
                     line_number=r.line,
                     category=r.category,
                     severity=r.severity,
@@ -107,19 +116,18 @@ async def _process_review(
             ]
             db.add_all(comments)
 
-            from sqlalchemy import update
-            from app.db.models import PullRequestReview as PRR
-
             await db.execute(
-                update(PRR).where(PRR.id == review_id).values(status="completed")
+                update(PullRequestReview)
+                .where(PullRequestReview.id == review_id)
+                .values(status="completed")
             )
             await db.commit()
+
         except Exception as exc:
             logger.error("Review %s failed: %s", review_id, exc)
-            from sqlalchemy import update
-            from app.db.models import PullRequestReview as PRR
-
             await db.execute(
-                update(PRR).where(PRR.id == review_id).values(status="failed")
+                update(PullRequestReview)
+                .where(PullRequestReview.id == review_id)
+                .values(status="failed")
             )
             await db.commit()

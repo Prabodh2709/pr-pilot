@@ -25,6 +25,7 @@ class ReviewResult:
     line: int
     comment: str
     suggestion: str | None = None
+    file_path: str = ""  # populated by run_review from the enclosing hunk
 
 
 class LLMProvider(ABC):

@@ -80,6 +80,9 @@ async def run_review(
             results = []
 
         for result in results:
+            result.file_path = hunk.file_path
+
+        for result in results:
             try:
                 gh.post_review_comment(
                     repo_full_name=repo_full_name,
