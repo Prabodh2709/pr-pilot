@@ -38,7 +38,7 @@ def post_review_comment(
     pr = repo.get_pull(pr_number)
     commit = repo.get_commit(commit_id)
     try:
-        pr.create_review_comment(body=body, commit=commit, path=path, line=line)
+        pr.create_review_comment(body=body, commit=commit, path=path, line=line, side="RIGHT")
     except GithubException as exc:
         raise RuntimeError(f"Failed to post GitHub comment: {exc}") from exc
 

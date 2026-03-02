@@ -21,6 +21,34 @@ class DiffHunk:
     def added_lines(self) -> list[DiffLine]:
         return [l for l in self.lines if l.kind == "added"]
 
+    @property
+    def removed_lines(self) -> list[DiffLine]:
+        return [l for l in self.lines if l.kind == "removed"]
+
+    @property
+    def stats(self) -> dict:
+        additions = len(self.added_lines)
+        deletions = len(self.removed_lines)
+        return {"additions": additions, "deletions": deletions, "net": additions - deletions}
+
+
+def summarise_diff(hunks: list[DiffHunk]) -> dict:
+    files = {}
+    for hunk in hunks:
+        if hunk.file_path not in files:
+            files[hunk.file_path] = {"additions": 0, "deletions": 0}
+        s = hunk.stats
+        files[hunk.file_path]["additions"] += s["additions"]
+        files[hunk.file_path]["deletions"] += s["deletions"]
+    total_additions = sum(v["additions"] for v in files.values())
+    total_deletions = sum(v["deletions"] for v in files.values())
+    return {
+        "files_changed": len(files),
+        "total_additions": total_additions,
+        "total_deletions": total_deletions,
+        "files": files,
+    }
+
 
 _FILE_HEADER = re.compile(r"^\+\+\+ b/(.+)$")
 _HUNK_HEADER = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
@@ -46,6 +74,12 @@ def parse_diff(unified_diff: str) -> list[DiffHunk]:
             hunks.append(current_hunk)
             continue
 
+        # Diff file-boundary headers must end the current hunk, not be parsed as
+        # context lines that would inflate the line-number range.
+        if raw_line.startswith(("diff ", "index ", "--- ")):
+            current_hunk = None
+            continue
+
         if current_hunk is None:
             continue
 
@@ -62,3 +96,8 @@ def parse_diff(unified_diff: str) -> list[DiffHunk]:
             new_line_num += 1
 
     return hunks
+
+
+def filter_hunks_by_severity_threshold(hunks: list[DiffHunk], min_additions: int = 1) -> list[DiffHunk]:
+    return [h for h in hunks if len(h.added_lines) >= min_additions]
+
